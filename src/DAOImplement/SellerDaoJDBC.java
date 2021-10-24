@@ -1,6 +1,7 @@
 package DAOImplement;
 
 import DAO.SellerDAO;
+import DB.DBConnection;
 import Entities.Department;
 import Entities.Seller;
 
@@ -8,7 +9,10 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SellerDaoJDBC implements SellerDAO {
 
@@ -56,6 +60,10 @@ public class SellerDaoJDBC implements SellerDAO {
         catch (SQLException e){
             throw new RuntimeException(e.getMessage());
         }
+        finally {
+            DBConnection.CloseStatement(st);
+            DBConnection.CloseResult(rs);
+        }
 
     }
 
@@ -80,5 +88,48 @@ public class SellerDaoJDBC implements SellerDAO {
     @Override
     public List<Seller> findAll() {
         return null;
+    }
+
+    @Override
+    public List<Seller> findByDepartment(Department department) {
+        PreparedStatement st = null;
+        ResultSet rs = null;
+        try{
+            st = conn.prepareStatement(
+                    "SELECT seller.*,department.Name as DepName " +
+                    "FROM seller INNER JOIN department " +
+                    "ON seller.DepartmentId = department.Id " +
+                    "WHERE DepartmentId = ? " +
+                    "ORDER BY Name");
+
+            st.setInt(1,department.getId());
+            rs = st.executeQuery();
+
+            List<Seller> sellers = new ArrayList<>();
+            Map<Integer,Department> map = new HashMap<>();
+
+
+            while(rs.next()){
+
+                Department dap = map.get(rs.getInt("DepartmentId"));
+
+                if(dap == null){
+                    dap = instantiateDepartment(rs);
+                    map.put(rs.getInt("DepartmentId"),dap);
+                }
+
+                Seller obj = instantiateSeller(rs,dap);
+                sellers.add(obj);
+            }
+            return sellers;
+
+        }
+        catch (SQLException e){
+            throw new RuntimeException(e.getMessage());
+        }
+        finally {
+            DBConnection.CloseStatement(st);
+            DBConnection.CloseResult(rs);
+        }
     }
 }

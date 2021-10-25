@@ -5,10 +5,7 @@ import DB.DBConnection;
 import Entities.Department;
 import Entities.Seller;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -24,6 +21,41 @@ public class SellerDaoJDBC implements SellerDAO {
     @Override
     public void insert(Seller obj) {
 
+        PreparedStatement st = null;
+        try{
+            st = conn.prepareStatement("INSERT INTO seller " +
+                    "(Name, Email, BirthDate, BaseSalary, DepartmentId) " +
+                    "VALUES " +
+                    "(?, ?, ?, ?, ?)", Statement.RETURN_GENERATED_KEYS);
+
+            st.setString(1,obj.getName());
+            st.setString(2, obj.getEmail());
+            st.setDate(3,new java.sql.Date(obj.getBirthDate().getTime()));
+            st.setDouble(4,obj.getBaseSalary());
+            st.setInt(5,obj.getDepartment().getId());
+
+            int rowsAffected = st.executeUpdate();
+
+            if(rowsAffected > 0){
+                var rs = st.getGeneratedKeys();
+                if(rs.next()){
+                    int ID = rs.getInt(1);
+                    obj.setId(ID);
+                }
+                DBConnection.CloseResult(rs);
+            }
+            else{
+                throw new RuntimeException("Erro inesperado, nenhuma linha foi afetada");
+            }
+
+        }
+        catch (SQLException e){
+            throw new RuntimeException(e.getMessage());
+        }
+        finally {
+            DBConnection.CloseStatement(st);
+
+        }
     }
 
     @Override
@@ -73,7 +105,7 @@ public class SellerDaoJDBC implements SellerDAO {
         obj.setName(rs.getString("Name"));
         obj.setEmail(rs.getString("Email"));
         obj.setBirthDate(rs.getDate("BirthDate"));
-        obj.getBaseSalary(rs.getDouble("BaseSalary"));
+        obj.setBaseSalary(rs.getDouble("BaseSalary"));
         obj.setDepartment(dap);
         return obj;
     }
@@ -87,7 +119,44 @@ public class SellerDaoJDBC implements SellerDAO {
 
     @Override
     public List<Seller> findAll() {
-        return null;
+        PreparedStatement st = null;
+        ResultSet rs = null;
+        try{
+            st = conn.prepareStatement("SELECT seller.*,department.Name as DepName " +
+                    "FROM seller INNER JOIN department " +
+                   "ON seller.DepartmentId = department.Id " +
+                    "ORDER BY Name");
+
+
+            rs = st.executeQuery();
+
+            List<Seller> sellers = new ArrayList<>();
+            Map<Integer,Department> map = new HashMap<>();
+
+
+            while(rs.next()){
+
+                Department dap = map.get(rs.getInt("DepartmentId"));
+
+                if(dap == null){
+                    dap = instantiateDepartment(rs);
+                    map.put(rs.getInt("DepartmentId"),dap);
+                }
+
+                Seller obj = instantiateSeller(rs,dap);
+                sellers.add(obj);
+            }
+            return sellers;
+
+        }
+        catch (SQLException e){
+            throw new RuntimeException(e.getMessage());
+        }
+        finally {
+            DBConnection.CloseStatement(st);
+            DBConnection.CloseResult(rs);
+        }
+
     }
 
     @Override
